@@ -1110,7 +1110,7 @@ function requestNotification() {
 }
 
 // EML file handling
-let emlTexts = [];
+// emlTexts defined above
 
 function parseEml(rawText) {
   const lines = rawText.split(/
@@ -1140,36 +1140,80 @@ function parseEml(rawText) {
   return `件名:${subject} 差出人:${from} 本文:${bodyText}`;
 }
 
-// DropZoneイベントをDOMロード後に登録
-document.addEventListener('DOMContentLoaded', function() {
+// ===== EML/MSG FILE HANDLING =====
+var emlTexts = [];
+
+function loadEmlFiles(files) {
+  if (!files || !files.length) return;
+  emlTexts = [];
+  var listEl = document.getElementById('emlFileList');
+  if (listEl) listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);">' + files.length + '件読み込み中...</div>';
+  var loaded = 0;
+  for (var i = 0; i < files.length; i++) {
+    (function(file) {
+      var isMsg = file.name.toLowerCase().indexOf('.msg') !== -1;
+      var reader = new FileReader();
+      if (isMsg) {
+        reader.onload = function(e) {
+          var extracted = parseMsgBinary(e.target.result);
+          var guessSubject = file.name.replace(/\.msg$/i, '');
+          emlTexts.push({ filename: file.name, text: '件名:' + guessSubject + ' ' + extracted });
+          loaded++;
+          if (loaded === files.length) renderEmlList(files.length);
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.onload = function(e) {
+          emlTexts.push({ filename: file.name, text: parseEml(e.target.result) });
+          loaded++;
+          if (loaded === files.length) renderEmlList(files.length);
+        };
+        reader.readAsText(file, 'utf-8');
+      }
+    })(files[i]);
+  }
+}
+
+function renderEmlList(count) {
+  var listEl = document.getElementById('emlFileList');
+  if (listEl) {
+    listEl.innerHTML = emlTexts.map(function(e) {
+      return '<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ' + e.filename + '</div>';
+    }).join('');
+  }
+  showToast('📧', '読み込み完了', count + '件のメールを読み込みました');
+}
+
+// DropZoneのイベントをページ読み込み後に設定
+window.addEventListener('load', function() {
   var zone = document.getElementById('emlDropZone');
   var input = document.getElementById('emlInput');
-  if (zone) {
-    zone.addEventListener('click', function() { input.click(); });
-    zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.style.borderColor='var(--accent)'; });
-    zone.addEventListener('dragleave', function() { zone.style.borderColor='var(--border)'; });
+  if (zone && input) {
+    zone.addEventListener('click', function(e) {
+      if (e.target !== input) input.click();
+    });
+    zone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.style.borderColor = 'var(--accent)';
+    });
+    zone.addEventListener('dragleave', function() {
+      zone.style.borderColor = 'var(--border)';
+    });
     zone.addEventListener('drop', function(e) {
       e.preventDefault();
-      zone.style.borderColor='var(--border)';
-      var files = Array.from(e.dataTransfer.files).filter(function(f){ return f.name.endsWith('.eml') || f.name.endsWith('.msg'); });
-      loadEmlFiles(files);
+      e.stopPropagation();
+      zone.style.borderColor = 'var(--border)';
+      var files = Array.from(e.dataTransfer.files).filter(function(f) {
+        return f.name.toLowerCase().endsWith('.eml') || f.name.toLowerCase().endsWith('.msg');
+      });
+      if (files.length) loadEmlFiles(files);
+    });
+    input.addEventListener('change', function(e) {
+      if (e.target.files && e.target.files.length) loadEmlFiles(Array.from(e.target.files));
     });
   }
-  if (input) {
-    input.addEventListener('change', function(e) { loadEmlFiles(Array.from(e.target.files)); });
-  }
 });
-
-window.handleEmlDrop = function handleEmlDrop(event) {
-  event.preventDefault();
-  document.getElementById('emlDropZone').style.borderColor = 'var(--border)';
-  const files = Array.from(event.dataTransfer.files).filter(f => f.name.endsWith('.eml'));
-  loadEmlFiles(files);
-}
-
-window.handleEmlSelect = function handleEmlSelect(event) {
-  loadEmlFiles(Array.from(event.target.files));
-}
 
 window.parseMsgBinary = function parseMsgBinary(buffer) {
   const bytes = new Uint8Array(buffer);
