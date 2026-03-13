@@ -645,6 +645,7 @@ function setTab(tab, btn) {
 // Notion API via proxy
 async function notionRequest(endpoint, method='GET', body=null) {
   const NOTION_API_KEY = localStorage.getItem('hara_notion_key') || '';
+  const WORKER_URL = 'https://notion-proxy.h113-yuhta.workers.dev/notion';
   const opts = {
     method,
     headers: {
@@ -654,20 +655,8 @@ async function notionRequest(endpoint, method='GET', body=null) {
     }
   };
   if (body) opts.body = JSON.stringify(body);
-  const targetUrl = `https://api.notion.com/v1/${endpoint}`;
-  const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-  ];
-  let lastErr;
-  for (const url of proxies) {
-    try {
-      const res = await fetch(url, opts);
-      const data = await res.json();
-      if (!data.object || data.object !== 'error') return data;
-    } catch(e) { lastErr = e; }
-  }
-  throw lastErr || new Error('All proxies failed');
+  const res = await fetch(`${WORKER_URL}/${endpoint}`, opts);
+  return res.json();
 }
 
 // Sync from Notion
