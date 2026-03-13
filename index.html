@@ -164,6 +164,12 @@
   .priority-mid { background:var(--accent); }
   .priority-low { background:var(--text3); }
   .notion-icon { font-size:12px; opacity:0.4; }
+  .delete-btn {
+    background:none; border:none; color:var(--text3); cursor:pointer;
+    font-size:16px; padding:2px 6px; border-radius:4px;
+    transition:all 0.15s; flex-shrink:0; line-height:1;
+  }
+  .delete-btn:hover { color:var(--danger); background:rgba(232,87,87,0.1); }
 
   .cat-決裁系 { background:rgba(232,197,71,0.15); color:var(--cat-1); }
   .cat-設計担当 { background:rgba(91,138,240,0.15); color:var(--cat-2); }
@@ -812,6 +818,23 @@ async function addTaskFromAI(name, cat, priority) {
   }
 }
 
+// Delete task
+async function deleteTask(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  const t = tasks.find(t => String(t.id) === String(id));
+  if (!t) return;
+  // Notionからも削除（アーカイブ）
+  if (t.notionId) {
+    try {
+      await notionRequest(`pages/${t.notionId}`, 'PATCH', { archived: true });
+    } catch(e) {}
+  }
+  tasks = tasks.filter(t => String(t.id) !== String(id));
+  saveTasks();
+  renderAll();
+  showToast('🗑️', '削除しました', `「${t.name}」を削除しました`);
+}
+
 // Toggle done
 async function toggleTask(id) {
   const t = tasks.find(t => t.id === id);
@@ -896,7 +919,7 @@ function renderTaskList() {
   });
   list.innerHTML = sorted.map(t => {
     const status = getDueStatus(t.due);
-    return `<div class="task-item ${t.done?'done':''}">
+    return `<div class="task-item ${t.done?'done':''}" id="task-${t.id}">
       <div class="task-check ${t.done?'checked':''}" onclick="toggleTask('${t.id}')"></div>
       <div class="task-info">
         <div class="task-name">${t.name}</div>
@@ -906,6 +929,7 @@ function renderTaskList() {
       <span class="task-due ${status}">${formatDue(t.due)}</span>
       <div class="task-priority priority-${t.priority}"></div>
       <span class="notion-icon">${t.fromNotion ? 'N' : ''}</span>
+      <button class="delete-btn" onclick="deleteTask('${t.id}')" title="削除">×</button>
     </div>`;
   }).join('');
 }
@@ -1080,7 +1104,7 @@ async function extractTasks() {
   result.innerHTML = '<div class="loading"><div class="spinner"></div>AIが重要度を判定しています...</div>';
   result.classList.add('show');
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://notion-proxy.h113-yuhta.workers.dev/claude', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
       body:JSON.stringify({
