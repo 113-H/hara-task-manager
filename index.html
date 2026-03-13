@@ -525,9 +525,28 @@
       <!-- AI Panel -->
       <div class="ai-panel">
         <h3>AIタスク抽出 <span class="ai-badge">CLAUDE AI</span></h3>
-        <p class="ai-desc">メール本文を貼り付けると重要度を判定してタスクを抽出します</p>
-        <textarea class="ai-textarea" id="aiPaste" placeholder="メール本文をここに貼り付け..."></textarea>
-        <button class="btn-ai" id="aiBtn" onclick="extractTasks()">✦ AIでタスクを抽出する</button>
+        <p class="ai-desc">📎 .emlファイルを複数選択してAIが一括解析します</p>
+
+        <!-- EML upload -->
+        <div id="emlDropZone" style="border:2px dashed var(--border);border-radius:var(--radius-sm);padding:16px;text-align:center;cursor:pointer;transition:border-color 0.2s;margin-bottom:10px;"
+          onclick="document.getElementById('emlInput').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+          ondragleave="this.style.borderColor='var(--border)'"
+          ondrop="handleEmlDrop(event)">
+          <div style="font-size:24px;margin-bottom:6px;">📧</div>
+          <div style="font-size:12px;color:var(--text3);">.emlファイルをドロップ<br>またはクリックして選択</div>
+          <input type="file" id="emlInput" accept=".eml" multiple style="display:none" onchange="handleEmlSelect(event)">
+        </div>
+
+        <div id="emlFileList" style="margin-bottom:8px;"></div>
+
+        <!-- テキスト貼り付け（折りたたみ） -->
+        <details style="margin-bottom:8px;">
+          <summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0;">または本文を直接貼り付け</summary>
+          <textarea class="ai-textarea" id="aiPaste" placeholder="メール本文をここに貼り付け..." style="margin-top:8px;"></textarea>
+        </details>
+
+        <button class="btn-ai" id="aiBtn" onclick="extractTasks()">✦ AIでタスクを一括抽出する</button>
         <div class="ai-result" id="aiResult"></div>
       </div>
     </div>
@@ -1094,54 +1113,111 @@ function requestNotification() {
   });
 }
 
+// EML file handling
+let emlTexts = [];
+
+function parseEml(rawText) {
+  const lines = rawText.split(/?
+/);
+  let inBody = false;
+  let subject = '';
+  let from = '';
+  let bodyLines = [];
+  let encoding = '';
+  for (const line of lines) {
+    if (!inBody) {
+      if (line.trim() === '') { inBody = true; continue; }
+      if (line.toLowerCase().startsWith('subject:')) subject = line.slice(8).trim();
+      if (line.toLowerCase().startsWith('from:')) from = line.slice(5).trim();
+      if (line.toLowerCase().includes('content-transfer-encoding:')) encoding = line.split(':')[1].trim().toLowerCase();
+    } else {
+      bodyLines.push(line);
+    }
+  }
+  let bodyText = bodyLines.join(' ');
+  if (encoding === 'quoted-printable') {
+    bodyText = bodyText.replace(/=[
+]+/g,'').replace(/=([0-9A-Fa-f]{2})/g, (m,p1) => String.fromCharCode(parseInt(p1,16)));
+  }
+  bodyText = bodyText.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').trim().slice(0,600);
+  return `件名:${subject} 差出人:${from} 本文:${bodyText}`;
+}
+
+function handleEmlDrop(event) {
+  event.preventDefault();
+  document.getElementById('emlDropZone').style.borderColor = 'var(--border)';
+  const files = Array.from(event.dataTransfer.files).filter(f => f.name.endsWith('.eml'));
+  loadEmlFiles(files);
+}
+
+function handleEmlSelect(event) {
+  loadEmlFiles(Array.from(event.target.files));
+}
+
+function loadEmlFiles(files) {
+  if (!files.length) return;
+  emlTexts = [];
+  const listEl = document.getElementById('emlFileList');
+  listEl.innerHTML = `<div style="font-size:11px;color:var(--text3);">${files.length}件読み込み中...</div>`;
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      emlTexts.push({ filename: file.name, text: parseEml(e.target.result) });
+      loaded++;
+      if (loaded === files.length) {
+        listEl.innerHTML = emlTexts.map(e => `<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ${e.filename}</div>`).join('');
+        showToast('📧','読み込み完了', files.length + '件のメールを読み込みました');
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
 // AI extraction
 async function extractTasks() {
-  const text = document.getElementById('aiPaste').value.trim();
-  if (!text) { showToast('⚠️','エラー','メール本文を入力してください'); return; }
+  let mailContents = '';
+  if (emlTexts.length > 0) {
+    mailContents = emlTexts.map((e,i) => `[メール${i+1}] ${e.filename}\n${e.text}`).join('\n\n---\n\n');
+  } else {
+    const ta = document.getElementById('aiPaste');
+    mailContents = ta ? ta.value.trim() : '';
+  }
+  if (!mailContents) { showToast('⚠️','エラー','.emlファイルをアップロードか本文を入力してください'); return; }
   const btn = document.getElementById('aiBtn');
-  btn.disabled = true; btn.textContent = '解析中...';
+  btn.disabled = true;
+  btn.textContent = emlTexts.length ? emlTexts.length + '件を解析中...' : '解析中...';
   const result = document.getElementById('aiResult');
   result.innerHTML = '<div class="loading"><div class="spinner"></div>AIが重要度を判定しています...</div>';
   result.classList.add('show');
   try {
     const res = await fetch('https://notion-proxy.h113-yuhta.workers.dev/claude', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json' },
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
+        max_tokens:2000,
         messages:[{
           role:'user',
-          content:`以下のメール本文を分析して、対応が必要なタスクを抽出してください。重要度も判定してください。
-メール本文：
-${text}
-
-JSONのみで返答（他のテキスト不要）：
-{"tasks":[{"name":"タスク名（具体的に）","cat":"決裁系|設計担当|営業助成|社外返答","priority":"high|mid|low","reason":"この優先度にした理由を10文字以内で"}]}`
+          content:'以下のメールを分析して対応が必要なタスクをすべて抽出してください。\n\n' + mailContents + '\n\nJSONのみで返答（他テキスト不要）:\n{"tasks":[{"name":"タスク名","cat":"決裁系|設計担当|営業助成|社外返答","priority":"high|mid|low","reason":"優先度の理由10文字以内","source":"件名またはファイル名"}]}'
         }]
       })
     });
     const data = await res.json();
-    const content = data.content[0].text;
-    const parsed = JSON.parse(content.replace(/```json|```/g,'').trim());
-    if (parsed.tasks?.length) {
-      result.innerHTML = parsed.tasks.map(t => `
-        <div class="ai-task-preview">
-          <div style="flex:1;min-width:0">
-            <div class="ai-task-name">${t.name}</div>
-            <div class="ai-task-meta">${t.cat} · ${t.priority==='high'?'🔴高':t.priority==='mid'?'🟡中':'🟢低'} · ${t.reason||''}</div>
-          </div>
-          <button class="btn-add-ai" onclick="addTaskFromAI('${t.name.replace(/'/g,"\\'")}','${t.cat}','${t.priority}')">追加</button>
-        </div>`).join('');
+    const txt = data.content[0].text;
+    const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
+    if (parsed.tasks && parsed.tasks.length) {
+      result.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">' + parsed.tasks.length + '件のタスクを抽出しました</div>' +
+        parsed.tasks.map(t => '<div class="ai-task-preview"><div style="flex:1;min-width:0"><div class="ai-task-name">' + t.name + '</div><div class="ai-task-meta">' + t.cat + ' · ' + (t.priority==='high'?'🔴高':t.priority==='mid'?'🟡中':'🟢低') + ' · ' + (t.reason||'') + '</div>' + (t.source ? '<div style="font-size:10px;color:var(--text3);">📧 ' + t.source + '</div>' : '') + '</div><button class="btn-add-ai" onclick="addTaskFromAI(\'' + t.name.replace(/'/g,"\\'") + '\',\'' + t.cat + '\',\'' + t.priority + '\')">追加</button></div>').join('');
     } else {
       result.innerHTML = '<div style="font-size:12px;color:var(--text3)">タスクが見つかりませんでした</div>';
     }
   } catch(e) {
     result.innerHTML = '<div style="font-size:12px;color:var(--danger)">エラーが発生しました</div>';
   }
-  btn.disabled=false; btn.textContent='✦ AIでタスクを抽出する';
+  btn.disabled = false;
+  btn.textContent = '✦ AIでタスクを一括抽出する';
 }
-
 function showToast(icon,title,body) {
   document.getElementById('toastIcon').textContent = icon;
   document.getElementById('toastTitle').textContent = title;
