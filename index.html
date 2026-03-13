@@ -525,7 +525,7 @@
       <!-- AI Panel -->
       <div class="ai-panel">
         <h3>AIタスク抽出 <span class="ai-badge">CLAUDE AI</span></h3>
-        <p class="ai-desc">📎 .emlファイルを複数選択してAIが一括解析します</p>
+        <p class="ai-desc">📎 .eml / .msgファイルを複数選択してAIが一括解析します</p>
 
         <!-- EML upload -->
         <div id="emlDropZone" style="border:2px dashed var(--border);border-radius:var(--radius-sm);padding:16px;text-align:center;cursor:pointer;transition:border-color 0.2s;margin-bottom:10px;"
@@ -534,8 +534,8 @@
           ondragleave="this.style.borderColor='var(--border)'"
           ondrop="handleEmlDrop(event)">
           <div style="font-size:24px;margin-bottom:6px;">📧</div>
-          <div style="font-size:12px;color:var(--text3);">.emlファイルをドロップ<br>またはクリックして選択</div>
-          <input type="file" id="emlInput" accept=".eml" multiple style="display:none" onchange="handleEmlSelect(event)">
+          <div style="font-size:12px;color:var(--text3);">.eml / .msgファイルをドロップ<br>またはクリックして選択（複数可）</div>
+          <input type="file" id="emlInput" accept=".eml,.msg" multiple style="display:none" onchange="handleEmlSelect(event)">
         </div>
 
         <div id="emlFileList" style="margin-bottom:8px;"></div>
@@ -1155,23 +1155,61 @@ function handleEmlSelect(event) {
   loadEmlFiles(Array.from(event.target.files));
 }
 
+function parseMsgBinary(buffer) {
+  // .msgファイルからテキストを抽出（バイナリ解析）
+  const bytes = new Uint8Array(buffer);
+  let text = '';
+  // UTF-16LEとして読む（Outlookの標準）
+  for (let i = 0; i < bytes.length - 1; i += 2) {
+    const code = bytes[i] | (bytes[i+1] << 8);
+    if (code >= 0x20 && code < 0x10000) {
+      text += String.fromCharCode(code);
+    } else if (code === 0x000A || code === 0x000D) {
+      text += ' ';
+    }
+  }
+  // 意味のある文字列だけ抽出（4文字以上の連続）
+  const matches = text.match(/[　-鿿＀-￯一-龥a-zA-Z0-9\s]{4,}/g) || [];
+  const meaningful = matches
+    .map(s => s.trim())
+    .filter(s => s.length > 3 && !/^[a-zA-Z0-9\s]+$/.test(s) || s.length > 10)
+    .join(' ');
+  return '本文(概要):' + meaningful.slice(0, 800);
+}
+
 function loadEmlFiles(files) {
   if (!files.length) return;
   emlTexts = [];
   const listEl = document.getElementById('emlFileList');
-  listEl.innerHTML = `<div style="font-size:11px;color:var(--text3);">${files.length}件読み込み中...</div>`;
+  listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);">' + files.length + '件読み込み中...</div>';
   let loaded = 0;
   files.forEach(file => {
+    const isMsg = file.name.toLowerCase().endsWith('.msg');
     const reader = new FileReader();
-    reader.onload = e => {
-      emlTexts.push({ filename: file.name, text: parseEml(e.target.result) });
-      loaded++;
-      if (loaded === files.length) {
-        listEl.innerHTML = emlTexts.map(e => `<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ${e.filename}</div>`).join('');
-        showToast('📧','読み込み完了', files.length + '件のメールを読み込みました');
-      }
-    };
-    reader.readAsText(file, 'utf-8');
+    if (isMsg) {
+      reader.onload = e => {
+        const extracted = parseMsgBinary(e.target.result);
+        // ファイル名から件名を推測
+        const guessSubject = file.name.replace(/\.msg$/i,'');
+        emlTexts.push({ filename: file.name, text: '件名:' + guessSubject + ' ' + extracted });
+        loaded++;
+        if (loaded === files.length) {
+          listEl.innerHTML = emlTexts.map(e => '<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ' + e.filename + '</div>').join('');
+          showToast('📧','読み込み完了', files.length + '件のメールを読み込みました');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = e => {
+        emlTexts.push({ filename: file.name, text: parseEml(e.target.result) });
+        loaded++;
+        if (loaded === files.length) {
+          listEl.innerHTML = emlTexts.map(e => '<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ' + e.filename + '</div>').join('');
+          showToast('📧','読み込み完了', files.length + '件のメールを読み込みました');
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    }
   });
 }
 
