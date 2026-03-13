@@ -554,7 +554,7 @@
 </div>
 
 <!-- Setup Modal -->
-<div id="setupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;">
+<div id="setupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:420px;max-width:90vw;">
     <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:8px;">⚙️ 初期設定</div>
     <p style="font-size:13px;color:var(--text3);margin-bottom:24px;line-height:1.6;">Notion APIキーを入力してください。<br>このデバイスにのみ保存されます。</p>
@@ -1117,7 +1117,8 @@ function requestNotification() {
 let emlTexts = [];
 
 function parseEml(rawText) {
-  const lines = rawText.split(/?
+  const lines = rawText.split(/
+?
 /);
   let inBody = false;
   let subject = '';
@@ -1139,7 +1140,7 @@ function parseEml(rawText) {
     bodyText = bodyText.replace(/=[
 ]+/g,'').replace(/=([0-9A-Fa-f]{2})/g, (m,p1) => String.fromCharCode(parseInt(p1,16)));
   }
-  bodyText = bodyText.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').trim().slice(0,600);
+  bodyText = bodyText.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/[ \t]+/g,' ').trim().slice(0,600);
   return `件名:${subject} 差出人:${from} 本文:${bodyText}`;
 }
 
