@@ -532,10 +532,10 @@
           onclick="document.getElementById('emlInput').click()"
           ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
           ondragleave="this.style.borderColor='var(--border)'"
-          ondrop="handleEmlDrop(event)">
+          ondrop="window.handleEmlDrop(event)">
           <div style="font-size:24px;margin-bottom:6px;">📧</div>
           <div style="font-size:12px;color:var(--text3);">.eml / .msgファイルをドロップ<br>またはクリックして選択（複数可）</div>
-          <input type="file" id="emlInput" accept=".eml,.msg" multiple style="display:none" onchange="handleEmlSelect(event)">
+          <input type="file" id="emlInput" accept=".eml,.msg" multiple style="display:none" onchange="window.handleEmlSelect(event)">
         </div>
 
         <div id="emlFileList" style="margin-bottom:8px;"></div>
@@ -1144,18 +1144,18 @@ function parseEml(rawText) {
   return `件名:${subject} 差出人:${from} 本文:${bodyText}`;
 }
 
-function handleEmlDrop(event) {
+window.handleEmlDrop = function handleEmlDrop(event) {
   event.preventDefault();
   document.getElementById('emlDropZone').style.borderColor = 'var(--border)';
   const files = Array.from(event.dataTransfer.files).filter(f => f.name.endsWith('.eml'));
   loadEmlFiles(files);
 }
 
-function handleEmlSelect(event) {
+window.handleEmlSelect = function handleEmlSelect(event) {
   loadEmlFiles(Array.from(event.target.files));
 }
 
-function parseMsgBinary(buffer) {
+window.parseMsgBinary = function parseMsgBinary(buffer) {
   // .msgファイルからテキストを抽出（バイナリ解析）
   const bytes = new Uint8Array(buffer);
   let text = '';
@@ -1177,7 +1177,7 @@ function parseMsgBinary(buffer) {
   return '本文(概要):' + meaningful.slice(0, 800);
 }
 
-function loadEmlFiles(files) {
+window.loadEmlFiles = function loadEmlFiles(files) {
   if (!files.length) return;
   emlTexts = [];
   const listEl = document.getElementById('emlFileList');
