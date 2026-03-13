@@ -569,35 +569,10 @@ let currentMonth = new Date();
 let notifGranted = false;
 
 // Setup
-async function saveSetup() {
+function saveSetup() {
   const key = document.getElementById('setupApiKey').value.trim();
   const db = document.getElementById('setupDbId').value.trim();
   if (!key) { alert('APIキーを入力してください'); return; }
-  const btn = document.querySelector('#setupModal button');
-  btn.textContent = '接続確認中...';
-  btn.disabled = true;
-  // 接続テスト
-  try {
-    const testUrl = `https://corsproxy.io/?${encodeURIComponent('https://api.notion.com/v1/databases/'+db+'/query')}`;
-    const res = await fetch(testUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ page_size: 1 })
-    });
-    const data = await res.json();
-    if (data.object === 'error') {
-      alert('接続エラー: ' + data.message + '\nAPIキーまたはデータベースIDを確認してください');
-      btn.textContent = '保存して開始';
-      btn.disabled = false;
-      return;
-    }
-  } catch(e) {
-    // プロキシエラーでも続行
-  }
   localStorage.setItem('hara_notion_key', key);
   localStorage.setItem('hara_notion_db', db);
   document.getElementById('setupModal').style.display = 'none';
@@ -606,10 +581,12 @@ async function saveSetup() {
 
 // Init
 window.onload = () => {
-  if (!localStorage.getItem('hara_notion_key')) {
+  const storedKey = localStorage.getItem('hara_notion_key');
+  if (!storedKey) {
     document.getElementById('setupModal').style.display = 'flex';
     return;
   }
+  document.getElementById('setupModal').style.display = 'none';
   updateDateDisplay();
   document.getElementById('taskDue').valueAsDate = new Date();
   document.getElementById('logDate').valueAsDate = new Date();
