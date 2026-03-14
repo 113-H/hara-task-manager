@@ -1107,7 +1107,9 @@ function requestNotification() {
 let emlTexts = [];
 
 function parseEml(rawText) {
-  var lines = rawText.split(/\r?\n/);
+  var lines = rawText.split(/
+?
+/);
   var inBody = false, subject = '', from = '', body = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
@@ -1117,7 +1119,7 @@ function parseEml(rawText) {
       if (line.toLowerCase().indexOf('from:') === 0) from = line.slice(5).trim();
     } else { body.push(line); }
   }
-  var bodyText = body.join(' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim().slice(0, 500);
+  var bodyText = body.join(' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').trim().slice(0,500);
   return '件名:' + subject + ' 差出人:' + from + ' 本文:' + bodyText;
 }
 
@@ -1153,72 +1155,89 @@ function loadEmlFiles(files) {
       var isMsg = file.name.toLowerCase().slice(-4) === '.msg';
       var reader = new FileReader();
       reader.onload = function(ev) {
-        var text;
-        if (isMsg) {
-          text = '件名:' + file.name.replace(/\.msg$/i, '') + ' ' + parseMsgBinary(ev.target.result);
-        } else {
-          text = parseEml(ev.target.result);
-        }
+        var text = isMsg
+          ? '件名:' + file.name.replace('.msg','') + ' ' + parseMsgBinary(ev.target.result)
+          : parseEml(ev.target.result);
         emlTexts.push({ filename: file.name, text: text });
         loaded++;
         if (loaded === files.length) {
           if (listEl) listEl.innerHTML = emlTexts.map(function(e) {
             return '<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ' + e.filename + '</div>';
           }).join('');
-          showToast('📧', '読み込み完了', files.length + '件のメールを読み込みました');
+          showToast('📧','読み込み完了', files.length + '件のメールを読み込みました');
         }
       };
       if (isMsg) reader.readAsArrayBuffer(file);
-      else reader.readAsText(file, 'utf-8');
+      else reader.readAsText(file,'utf-8');
     })(files[i]);
   }
 }
 
-// emlInputにイベントリスナーを設定（スクリプト末尾で実行）
-
 async function extractTasks() {
-  let mailContents = '';
+  var mailContents = '';
   if (emlTexts.length > 0) {
-    mailContents = emlTexts.map((e,i) => `[メール${i+1}] ${e.filename}\n${e.text}`).join('\n\n---\n\n');
+    mailContents = emlTexts.map(function(e,i){ return '[メール'+(i+1)+'] '+e.filename+'
+'+e.text; }).join('
+
+---
+
+');
   } else {
-    const ta = document.getElementById('aiPaste');
+    var ta = document.getElementById('aiPaste');
     mailContents = ta ? ta.value.trim() : '';
   }
-  if (!mailContents) { showToast('⚠️','エラー','.emlファイルをアップロードか本文を入力してください'); return; }
-  const btn = document.getElementById('aiBtn');
+  if (!mailContents) { showToast('⚠️','エラー','.msgファイルを選択か本文を入力してください'); return; }
+  var btn = document.getElementById('aiBtn');
   btn.disabled = true;
-  btn.textContent = emlTexts.length ? emlTexts.length + '件を解析中...' : '解析中...';
-  const result = document.getElementById('aiResult');
+  btn.textContent = emlTexts.length ? emlTexts.length+'件を解析中...' : '解析中...';
+  var result = document.getElementById('aiResult');
   result.innerHTML = '<div class="loading"><div class="spinner"></div>AIが重要度を判定しています...</div>';
   result.classList.add('show');
+  var CLAUDE_API_KEY = localStorage.getItem('hara_claude_key') || '';
   try {
-    const res = await fetch('https://notion-proxy.h113-yuhta.workers.dev/claude', {
+    var res = await fetch('https://notion-proxy.h113-yuhta.workers.dev/claude', {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:2000,
-        messages:[{
-          role:'user',
-          content:'以下のメールを分析して対応が必要なタスクをすべて抽出してください。\n\n' + mailContents + '\n\nJSONのみで返答（他テキスト不要）:\n{"tasks":[{"name":"タスク名","cat":"決裁系|設計担当|営業助成|社外返答","priority":"high|mid|low","reason":"優先度の理由10文字以内","source":"件名またはファイル名"}]}'
-        }]
+        messages:[{role:'user',content:'以下のメールを分析して対応が必要なタスクをすべて抽出してください。
+
+'+mailContents+'
+
+JSONのみで返答（他テキスト不要）:
+{"tasks":[{"name":"タスク名","cat":"決裁系|設計担当|営業助成|社外返答","priority":"high|mid|low","reason":"優先度の理由10文字以内","source":"件名またはファイル名"}]}'}]
       })
     });
-    const data = await res.json();
-    const txt = data.content[0].text;
-    const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
+    var data = await res.json();
+    var txt = data.content[0].text;
+    var parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
     if (parsed.tasks && parsed.tasks.length) {
-      result.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">' + parsed.tasks.length + '件のタスクを抽出しました</div>' +
-        parsed.tasks.map(t => '<div class="ai-task-preview"><div style="flex:1;min-width:0"><div class="ai-task-name">' + t.name + '</div><div class="ai-task-meta">' + t.cat + ' · ' + (t.priority==='high'?'🔴高':t.priority==='mid'?'🟡中':'🟢低') + ' · ' + (t.reason||'') + '</div>' + (t.source ? '<div style="font-size:10px;color:var(--text3);">📧 ' + t.source + '</div>' : '') + '</div><button class="btn-add-ai" onclick="addTaskFromAI(\'' + t.name.replace(/'/g,"\\'") + '\',\'' + t.cat + '\',\'' + t.priority + '\')">追加</button></div>').join('');
+      result.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">'+parsed.tasks.length+'件のタスクを抽出しました</div>' +
+        parsed.tasks.map(function(t) {
+          var pri = t.priority==='high'?'🔴高':t.priority==='mid'?'🟡中':'🟢低';
+          var safeName = t.name.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          var safeCat = t.cat.replace(/'/g,'&#39;');
+          return '<div class="ai-task-preview">' +
+            '<div style="flex:1;min-width:0">' +
+              '<div class="ai-task-name">' + t.name + '</div>' +
+              '<div class="ai-task-meta">' + t.cat + ' · ' + pri + ' · ' + (t.reason||'') + '</div>' +
+              (t.source ? '<div style="font-size:10px;color:var(--text3);">📧 ' + t.source + '</div>' : '') +
+            '</div>' +
+            '<button class="btn-add-ai" onclick="addTaskFromAI(&#39;' + safeName + '&#39;,&#39;' + safeCat + '&#39;,&#39;' + t.priority + '&#39;)">追加</button>' +
+          '</div>';
+        }).join('');;
     } else {
       result.innerHTML = '<div style="font-size:12px;color:var(--text3)">タスクが見つかりませんでした</div>';
     }
   } catch(e) {
-    result.innerHTML = '<div style="font-size:12px;color:var(--danger)">エラーが発生しました</div>';
+    result.innerHTML = '<div style="font-size:12px;color:var(--danger)">エラーが発生しました: '+e.message+'</div>';
   }
   btn.disabled = false;
   btn.textContent = '✦ AIでタスクを一括抽出する';
 }
+
+
 function showToast(icon,title,body) {
   document.getElementById('toastIcon').textContent = icon;
   document.getElementById('toastTitle').textContent = title;
@@ -1227,15 +1246,9 @@ function showToast(icon,title,body) {
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 3500);
 }
-// emlInputのchangeイベント
-(function() {
-  var input = document.getElementById('emlInput');
-  if (input) {
-    input.addEventListener('change', function(e) {
-      loadEmlFiles(Array.from(e.target.files));
-    });
-  }
-})();
+document.getElementById('emlInput').addEventListener('change', function(e) {
+  loadEmlFiles(Array.from(e.target.files));
+});
 </script>
 </body>
 </html>
