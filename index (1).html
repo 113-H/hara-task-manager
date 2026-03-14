@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hara タスク管理</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #18181c;
+    --surface2: #1f1f25;
+    --border: #2a2a33;
+    --accent: #e8c547;
+    --accent2: #5b8af0;
+    --text: #f0ede8;
+    --text2: #8a8898;
+    --text3: #55535f;
+    --danger: #e85757;
+    --success: #52c97a;
+    --warning: #f0a04a;
+    --cat-1: #e8c547;
+    --cat-2: #5b8af0;
+    --cat-3: #e8725b;
+    --cat-4: #52c97a;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none;
+    z-index:0;
+  }
+  .app { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:24px 20px; }
+
+  /* Header */
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:28px; padding-bottom:20px;
+    border-bottom:1px solid var(--border);
+  }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-mark {
+    width:38px; height:38px; background:var(--accent);
+    border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-family:'DM Serif Display',serif; font-size:20px; color:#000; font-weight:700;
+  }
+  .logo-title { font-size:16px; font-weight:500; letter-spacing:0.04em; }
+  .logo-sub { font-size:11px; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-top:1px; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .date-badge {
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text3);
+    background:var(--surface); border:1px solid var(--border);
+    padding:6px 12px; border-radius:6px;
+  }
+  .sync-btn {
+    display:flex; align-items:center; gap:6px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:7px 14px; cursor:pointer;
+    font-size:12px; color:var(--text2); font-family:'Noto Sans JP',sans-serif;
+    transition:all 0.2s;
+  }
+  .sync-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .sync-dot { width:7px; height:7px; border-radius:50%; background:var(--success); }
+  .sync-dot.syncing { animation: pulse 1s infinite; background:var(--accent); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .notif-btn {
+    width:36px; height:36px; background:var(--surface);
+    border:1px solid var(--border); border-radius:8px;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    font-size:16px; transition:all 0.2s; position:relative;
+  }
+  .notif-btn:hover { border-color:var(--accent); }
+
+  /* Tabs */
+  .tabs { display:flex; gap:4px; margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:0; }
+  .tab {
+    padding:10px 18px; font-size:13px; font-family:'Noto Sans JP',sans-serif;
+    background:transparent; border:none; color:var(--text3); cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-1px; transition:all 0.15s;
+    font-weight:500;
+  }
+  .tab:hover { color:var(--text2); }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  /* Stats */
+  .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:24px; }
+  .stat-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:14px 16px;
+  }
+  .stat-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
+  .stat-value { font-family:'DM Serif Display',serif; font-size:28px; line-height:1; margin-bottom:2px; }
+  .stat-sub { font-size:10px; color:var(--text3); }
+
+  /* Main layout */
+  .main { display:grid; grid-template-columns:1fr 320px; gap:16px; }
+
+  /* Panel */
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .panel-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid var(--border);
+  }
+  .panel-title { font-size:12px; font-weight:500; letter-spacing:0.08em; color:var(--text2); text-transform:uppercase; }
+
+  /* Filters */
+  .filters { display:flex; gap:4px; flex-wrap:wrap; }
+  .filter-btn {
+    font-size:11px; font-family:'Noto Sans JP',sans-serif;
+    padding:4px 10px; border-radius:5px; border:1px solid transparent;
+    cursor:pointer; background:transparent; color:var(--text3);
+    transition:all 0.15s; font-weight:500;
+  }
+  .filter-btn:hover { color:var(--text2); background:var(--surface2); }
+  .filter-btn.active { background:var(--surface2); border-color:var(--border); color:var(--text); }
+
+  /* Task list */
+  .task-list { padding:6px; min-height:200px; }
+  .task-item {
+    display:grid; grid-template-columns:auto 1fr auto auto auto auto;
+    align-items:center; gap:10px;
+    padding:11px 12px; border-radius:var(--radius-sm);
+    cursor:pointer; transition:background 0.15s;
+    margin-bottom:3px; border:1px solid transparent;
+  }
+  .task-item:hover { background:var(--surface2); }
+  .task-item.done { opacity:0.4; }
+  .task-check {
+    width:17px; height:17px; border:1.5px solid var(--border);
+    border-radius:5px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:all 0.15s; flex-shrink:0;
+  }
+  .task-check:hover { border-color:var(--accent); }
+  .task-check.checked { background:var(--success); border-color:var(--success); }
+  .task-check.checked::after { content:'✓'; font-size:10px; color:#000; font-weight:700; }
+  .task-info { overflow:hidden; }
+  .task-name { font-size:13px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .task-item.done .task-name { text-decoration:line-through; color:var(--text3); }
+  .task-memo { font-size:11px; color:var(--text3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .task-cat {
+    font-size:10px; font-weight:500; padding:3px 8px;
+    border-radius:4px; white-space:nowrap; letter-spacing:0.04em; flex-shrink:0;
+  }
+  .task-due { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text3); white-space:nowrap; }
+  .task-due.overdue { color:var(--danger); }
+  .task-due.today { color:var(--accent); }
+  .task-priority { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .priority-high { background:var(--danger); }
+  .priority-mid { background:var(--accent); }
+  .priority-low { background:var(--text3); }
+  .notion-icon { font-size:12px; opacity:0.4; }
+  .delete-btn {
+    background:none; border:none; color:var(--text3); cursor:pointer;
+    font-size:16px; padding:2px 6px; border-radius:4px;
+    transition:all 0.15s; flex-shrink:0; line-height:1;
+  }
+  .delete-btn:hover { color:var(--danger); background:rgba(232,87,87,0.1); }
+
+  .cat-決裁系 { background:rgba(232,197,71,0.15); color:var(--cat-1); }
+  .cat-設計担当 { background:rgba(91,138,240,0.15); color:var(--cat-2); }
+  .cat-営業助成 { background:rgba(232,114,91,0.15); color:var(--cat-3); }
+  .cat-社外返答 { background:rgba(82,201,122,0.15); color:var(--cat-4); }
+
+  /* Calendar view */
+  .calendar-grid {
+    display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:12px;
+  }
+  .cal-header { font-size:11px; color:var(--text3); text-align:center; padding:4px; font-weight:500; }
+  .cal-day {
+    min-height:72px; background:var(--surface2); border-radius:6px;
+    padding:6px; border:1px solid transparent; cursor:pointer; transition:border-color 0.15s;
+  }
+  .cal-day:hover { border-color:var(--border); }
+  .cal-day.today { border-color:var(--accent); }
+  .cal-day.other-month { opacity:0.3; }
+  .cal-date { font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--text3); margin-bottom:4px; }
+  .cal-day.today .cal-date { color:var(--accent); font-weight:700; }
+  .cal-task-dot {
+    font-size:10px; padding:1px 4px; border-radius:3px;
+    margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    line-height:1.4;
+  }
+
+  /* Category view */
+  .cat-view { padding:12px; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .cat-card {
+    background:var(--surface2); border-radius:var(--radius-sm);
+    border:1px solid var(--border); padding:14px; cursor:pointer; transition:border-color 0.2s;
+  }
+  .cat-card:hover { border-color:var(--border); }
+  .cat-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .cat-card-name { font-size:13px; font-weight:500; }
+  .cat-card-count {
+    font-family:'DM Serif Display',serif; font-size:24px; margin-bottom:4px;
+  }
+  .cat-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; margin-top:8px; }
+  .cat-bar-fill { height:100%; border-radius:2px; transition:width 0.5s; }
+
+  /* Right panel */
+  .right-panel { display:flex; flex-direction:column; gap:14px; }
+  .add-panel, .ai-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; }
+  .add-panel h3, .ai-panel h3 {
+    font-size:11px; font-weight:500; color:var(--text3);
+    letter-spacing:0.1em; text-transform:uppercase; margin-bottom:14px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .form-group { margin-bottom:10px; }
+  .form-label { font-size:11px; color:var(--text3); margin-bottom:5px; display:block; }
+  .form-input, .form-select {
+    width:100%; background:var(--surface2); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:8px 11px; color:var(--text);
+    font-size:13px; font-family:'Noto Sans JP',sans-serif; outline:none;
+    transition:border-color 0.15s;
+  }
+  .form-input:focus, .form-select:focus { border-color:var(--accent); }
+  .form-select {
+    appearance:none; cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%238a8898' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 10px center;
+  }
+  .form-select option { background:var(--surface2); }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .btn-primary {
+    width:100%; background:var(--accent); color:#000; border:none;
+    border-radius:var(--radius-sm); padding:10px; font-size:13px; font-weight:700;
+    font-family:'Noto Sans JP',sans-serif; cursor:pointer; transition:opacity 0.15s;
+    margin-top:4px; letter-spacing:0.04em; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-primary:hover { opacity:0.88; }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+
+  /* AI panel */
+  .ai-badge { font-size:9px; background:rgba(91,138,240,0.2); color:var(--accent2); padding:2px 6px; border-radius:4px; }
+  .ai-desc { font-size:11px; color:var(--text3); margin-bottom:10px; line-height:1.5; }
+  .ai-textarea {
+    width:100%; background:var(--surface2); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:10px 11px; color:var(--text);
+    font-size:12px; font-family:'Noto Sans JP',sans-serif; outline:none;
+    resize:none; height:80px; transition:border-color 0.15s; line-height:1.6;
+  }
+  .ai-textarea:focus { border-color:var(--accent2); }
+  .btn-ai {
+    width:100%; background:rgba(91,138,240,0.12); color:var(--accent2);
+    border:1px solid rgba(91,138,240,0.25); border-radius:var(--radius-sm);
+    padding:9px; font-size:12px; font-weight:500;
+    font-family:'Noto Sans JP',sans-serif; cursor:pointer; transition:all 0.15s; margin-top:8px;
+  }
+  .btn-ai:hover { background:rgba(91,138,240,0.22); }
+  .btn-ai:disabled { opacity:0.4; cursor:not-allowed; }
+  .ai-result { margin-top:10px; display:none; }
+  .ai-result.show { display:block; }
+  .ai-task-preview {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 10px; background:var(--surface2); border-radius:6px;
+    margin-bottom:6px; gap:8px;
+  }
+  .ai-task-name { font-size:12px; color:var(--text); }
+  .ai-task-meta { font-size:10px; color:var(--text3); margin-top:1px; }
+  .btn-add-ai {
+    font-size:10px; background:rgba(232,197,71,0.1); color:var(--accent);
+    border:1px solid rgba(232,197,71,0.2); border-radius:4px;
+    padding:4px 10px; cursor:pointer; transition:all 0.15s; white-space:nowrap;
+    font-family:'Noto Sans JP',sans-serif; flex-shrink:0;
+  }
+  .btn-add-ai:hover { background:rgba(232,197,71,0.2); }
+  .btn-add-ai:disabled { opacity:0.4; cursor:not-allowed; }
+
+  /* Workload view */
+  .workload-view { padding:16px; }
+  .week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:20px; }
+  .week-day { text-align:center; }
+  .week-label { font-size:10px; color:var(--text3); margin-bottom:6px; }
+  .week-bar-wrap { height:80px; background:var(--surface2); border-radius:4px; display:flex; align-items:flex-end; overflow:hidden; }
+  .week-bar { width:100%; background:var(--accent2); border-radius:4px; transition:height 0.4s; }
+  .week-hours { font-size:10px; color:var(--text3); margin-top:4px; font-family:'JetBrains Mono',monospace; }
+
+  .time-entry { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .time-input {
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:6px; padding:6px 10px; color:var(--text);
+    font-size:12px; font-family:'Noto Sans JP',sans-serif; outline:none; flex:1;
+  }
+  .time-input:focus { border-color:var(--accent); }
+  .btn-log {
+    background:rgba(82,201,122,0.15); color:var(--success);
+    border:1px solid rgba(82,201,122,0.25); border-radius:6px;
+    padding:6px 12px; font-size:12px; cursor:pointer; white-space:nowrap;
+    font-family:'Noto Sans JP',sans-serif; transition:all 0.15s;
+  }
+  .btn-log:hover { background:rgba(82,201,122,0.25); }
+
+  /* Toast */
+  .toast {
+    position:fixed; top:20px; right:20px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:13px 17px;
+    display:flex; align-items:center; gap:11px;
+    z-index:1000; transform:translateX(120%);
+    transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    max-width:300px; box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  }
+  .toast.show { transform:translateX(0); }
+  .toast-icon { font-size:18px; flex-shrink:0; }
+  .toast-title { font-size:13px; font-weight:500; margin-bottom:1px; }
+  .toast-body { font-size:11px; color:var(--text3); }
+
+  /* Empty */
+  .empty-state { text-align:center; padding:40px 20px; color:var(--text3); }
+  .empty-state .icon { font-size:28px; margin-bottom:10px; }
+  .empty-state p { font-size:12px; line-height:1.6; }
+
+  /* Loading */
+  .loading { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--accent2); padding:8px 0; }
+  .spinner { width:13px; height:13px; border:2px solid rgba(91,138,240,0.2); border-top-color:var(--accent2); border-radius:50%; animation:spin 0.6s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  .task-item { animation:fadeIn 0.2s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:translateY(0)} }
+
+  @media(max-width:900px) {
+    .main { grid-template-columns:1fr; }
+    .stats { grid-template-columns:repeat(3,1fr); }
+    .cat-view { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">H</div>
+      <div>
+        <div class="logo-title">Hara Task Manager</div>
+        <div class="logo-sub">ひかりハウジング · Notion連携</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="date-badge" id="dateDisplay"></div>
+      <button class="sync-btn" onclick="syncFromNotion()">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncLabel">Notion同期</span>
+      </button>
+      <button class="notif-btn" onclick="requestNotification()" title="通知を有効にする">🔔</button>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('list',this)">📋 タスク一覧</button>
+    <button class="tab" onclick="setTab('calendar',this)">📅 カレンダー</button>
+    <button class="tab" onclick="setTab('category',this)">🗂 カテゴリ別</button>
+    <button class="tab" onclick="setTab('workload',this)">📊 稼働実績</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label">今日のタスク</div>
+      <div class="stat-value" id="statToday" style="color:var(--accent)">0</div>
+      <div class="stat-sub">件</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">未着手</div>
+      <div class="stat-value" id="statPending" style="color:var(--text)">0</div>
+      <div class="stat-sub">件</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">進行中</div>
+      <div class="stat-value" id="statInProgress" style="color:var(--accent2)">0</div>
+      <div class="stat-sub">件</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">期限超過</div>
+      <div class="stat-value" id="statOverdue" style="color:var(--danger)">0</div>
+      <div class="stat-sub">件</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">今週の稼働</div>
+      <div class="stat-value" id="statHours" style="color:var(--success)">0</div>
+      <div class="stat-sub">時間</div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- Left: views -->
+    <div>
+      <!-- List view -->
+      <div id="view-list">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">タスク一覧</span>
+            <div class="filters">
+              <button class="filter-btn active" onclick="setFilter('all',this)">すべて</button>
+              <button class="filter-btn" onclick="setFilter('today',this)">今日</button>
+              <button class="filter-btn" onclick="setFilter('overdue',this)">期限超過</button>
+              <button class="filter-btn" onclick="setFilter('決裁系',this)">決裁</button>
+              <button class="filter-btn" onclick="setFilter('設計担当',this)">設計</button>
+              <button class="filter-btn" onclick="setFilter('営業助成',this)">営業</button>
+              <button class="filter-btn" onclick="setFilter('社外返答',this)">社外</button>
+            </div>
+          </div>
+          <div class="task-list" id="taskList"></div>
+        </div>
+      </div>
+
+      <!-- Calendar view -->
+      <div id="view-calendar" style="display:none">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">カレンダー</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <button onclick="changeMonth(-1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;">‹</button>
+              <span id="calMonthLabel" style="font-size:13px;color:var(--text2);font-family:'JetBrains Mono',monospace;"></span>
+              <button onclick="changeMonth(1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;">›</button>
+            </div>
+          </div>
+          <div id="calendarGrid"></div>
+        </div>
+      </div>
+
+      <!-- Category view -->
+      <div id="view-category" style="display:none">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">カテゴリ別物量</span></div>
+          <div class="cat-view" id="catView"></div>
+        </div>
+      </div>
+
+      <!-- Workload view -->
+      <div id="view-workload" style="display:none">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">稼働実績</span></div>
+          <div class="workload-view">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;letter-spacing:0.05em;">今週の稼働時間</div>
+            <div class="week-grid" id="weekGrid"></div>
+            <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:10px;letter-spacing:0.05em;">実績を入力</div>
+              <div class="time-entry">
+                <select class="time-input" id="logTask" style="flex:2">
+                  <option value="">タスクを選択...</option>
+                </select>
+                <input type="date" class="time-input" id="logDate" style="flex:1.2">
+                <input type="number" class="time-input" id="logHours" placeholder="時間" min="0.5" max="24" step="0.5" style="flex:0.8">
+                <button class="btn-log" onclick="logTime()">記録</button>
+              </div>
+              <div id="timeLogList" style="margin-top:12px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+      <!-- Add Task -->
+      <div class="add-panel">
+        <h3>タスクを追加</h3>
+        <div class="form-group">
+          <label class="form-label">タスク名</label>
+          <input type="text" class="form-input" id="taskName" placeholder="例：弱電図作成">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">カテゴリ</label>
+            <select class="form-select" id="taskCat">
+              <option value="決裁系">決裁系</option>
+              <option value="設計担当">設計担当</option>
+              <option value="営業助成">営業助成</option>
+              <option value="社外返答">社外返答</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">優先度</label>
+            <select class="form-select" id="taskPriority">
+              <option value="high">高</option>
+              <option value="mid" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">期限</label>
+            <input type="date" class="form-input" id="taskDue">
+          </div>
+          <div class="form-group">
+            <label class="form-label">アラート</label>
+            <select class="form-select" id="taskAlert">
+              <option value="0">当日</option>
+              <option value="1" selected>1日前</option>
+              <option value="2">2日前</option>
+              <option value="7">1週間前</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">メモ</label>
+          <input type="text" class="form-input" id="taskMemo" placeholder="備考・連絡先など">
+        </div>
+        <button class="btn-primary" id="addBtn" onclick="addTask()">
+          <span>＋ Notionに追加</span>
+        </button>
+      </div>
+
+      <!-- AI Panel -->
+      <div class="ai-panel">
+        <h3>AIタスク抽出 <span class="ai-badge">CLAUDE AI</span></h3>
+        <p class="ai-desc">📎 .msg / .emlファイルを複数選択してAIが一括解析します</p>
+        <label for="emlInput" style="display:block;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:16px;text-align:center;cursor:pointer;transition:border-color 0.2s;margin-bottom:10px;">
+          <div style="font-size:24px;margin-bottom:6px;">📧</div>
+          <div style="font-size:12px;color:var(--text3);">クリックして.msg / .emlを選択（複数可）</div>
+          <input type="file" id="emlInput" accept=".eml,.msg" multiple style="display:none">
+        </label>
+        <div id="emlFileList" style="margin-bottom:8px;"></div>
+        <details style="margin-bottom:8px;">
+          <summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0;">または本文を直接貼り付け</summary>
+          <textarea class="ai-textarea" id="aiPaste" placeholder="メール本文をここに貼り付け..." style="margin-top:8px;"></textarea>
+        </details>
+        <button class="btn-ai" id="aiBtn" onclick="extractTasks()">✦ AIでタスクを一括抽出する</button>
+        <div class="ai-result" id="aiResult"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Setup Modal -->
+<div id="setupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:420px;max-width:90vw;">
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:8px;">⚙️ 初期設定</div>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:24px;line-height:1.6;">Notion APIキーを入力してください。<br>このデバイスにのみ保存されます。</p>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px;">NOTION APIキー</label>
+      <input type="password" id="setupApiKey" placeholder="ntn_..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'Noto Sans JP',sans-serif;outline:none;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px;">データベースID（変更不要）</label>
+      <input type="text" id="setupDbId" value="322e20f7251780e8ba31d92cb2be6783" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;">
+    </div>
+    <button onclick="saveSetup()" style="width:100%;background:var(--accent);color:#000;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;">保存して開始</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toastIcon">🔔</div>
+  <div>
+    <div class="toast-title" id="toastTitle"></div>
+    <div class="toast-body" id="toastBody"></div>
+  </div>
+</div>
+
+<script>
+// Config
+const NOTION_API_KEY = localStorage.getItem("hara_notion_key") || "";
+const NOTION_DB_ID = localStorage.getItem("hara_notion_db") || "322e20f7251780e8ba31d92cb2be6783";
+const NOTION_VERSION = '2022-06-28';
+
+// State
+let tasks = JSON.parse(localStorage.getItem('hara_tasks_v2') || '[]');
+let timeLogs = JSON.parse(localStorage.getItem('hara_timelogs') || '[]');
+let currentFilter = 'all';
+let currentTab = 'list';
+let currentMonth = new Date();
+let notifGranted = false;
+
+// Setup
+function saveSetup() {
+  const key = document.getElementById('setupApiKey').value.trim();
+  const db = document.getElementById('setupDbId').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  localStorage.setItem('hara_notion_key', key);
+  localStorage.setItem('hara_notion_db', db);
+  document.getElementById('setupModal').style.display = 'none';
+  location.reload();
+}
+
+// Init
+window.onload = () => {
+  const storedKey = localStorage.getItem('hara_notion_key');
+  if (!storedKey) {
+    document.getElementById('setupModal').style.display = 'flex';
+    return;
+  }
+  document.getElementById('setupModal').style.display = 'none';
+  updateDateDisplay();
+  document.getElementById('taskDue').valueAsDate = new Date();
+  document.getElementById('logDate').valueAsDate = new Date();
+  if (Notification.permission === 'granted') notifGranted = true;
+  renderAll();
+  syncFromNotion();
+  setInterval(checkAlerts, 60000);
+};
+
+function saveTasks() { localStorage.setItem('hara_tasks_v2', JSON.stringify(tasks)); }
+function saveTimeLogs() { localStorage.setItem('hara_timelogs', JSON.stringify(timeLogs)); }
+
+function updateDateDisplay() {
+  const now = new Date();
+  const days = ['日','月','火','水','木','金','土'];
+  document.getElementById('dateDisplay').textContent =
+    `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${days[now.getDay()]}`;
+}
+
+// Tabs
+function setTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['list','calendar','category','workload'].forEach(t => {
+    document.getElementById('view-'+t).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'calendar') renderCalendar();
+  if (tab === 'category') renderCategory();
+  if (tab === 'workload') renderWorkload();
+}
+
+// Notion API via proxy
+async function notionRequest(endpoint, method='GET', body=null) {
+  const NOTION_API_KEY = localStorage.getItem('hara_notion_key') || '';
+  const WORKER_URL = 'https://notion-proxy.h113-yuhta.workers.dev/notion';
+  const opts = {
+    method,
+    headers: {
+      'Authorization': `Bearer ${NOTION_API_KEY}`,
+      'Notion-Version': NOTION_VERSION,
+      'Content-Type': 'application/json'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${WORKER_URL}/${endpoint}`, opts);
+  return res.json();
+}
+
+// Sync from Notion
+async function syncFromNotion() {
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  dot.classList.add('syncing');
+  label.textContent = '同期中...';
+  try {
+    const data = await notionRequest(`databases/${NOTION_DB_ID}/query`, 'POST', {
+      sorts: [{ property: '期日', direction: 'ascending' }]
+    });
+    if (data.results) {
+      const notionTasks = data.results.map(page => {
+        const props = page.properties;
+        const getName = () => {
+          const title = props['タスク名'] || props['Name'] || props['名前'];
+          if (!title) return '(無題)';
+          if (title.title) return title.title.map(t => t.plain_text).join('') || '(無題)';
+          return '(無題)';
+        };
+        const getCat = () => {
+          for (const key of ['カテゴリ','Category']) {
+            if (props[key]?.select?.name) return props[key].select.name;
+          }
+          return '社外返答';
+        };
+        const getStatus = () => {
+          for (const key of ['ステータス','Status']) {
+            if (props[key]?.status?.name) return props[key].status.name;
+          }
+          return '未着手';
+        };
+        const getPriority = () => {
+          for (const key of ['優先度','Priority']) {
+            if (props[key]?.select?.name) {
+              const n = props[key].select.name;
+              if (n === '高') return 'high';
+              if (n === '低') return 'low';
+              return 'mid';
+            }
+          }
+          return 'mid';
+        };
+        const getDue = () => {
+          for (const key of ['期日','期限','Due','Due Date']) {
+            if (props[key]?.date?.start) return props[key].date.start;
+          }
+          return '';
+        };
+        const getMemo = () => {
+          for (const key of ['説明','メモ','Memo','Description']) {
+            if (props[key]?.rich_text?.length) return props[key].rich_text.map(t=>t.plain_text).join('');
+          }
+          return '';
+        };
+        const statusName = getStatus();
+        return {
+          id: page.id,
+          notionId: page.id,
+          name: getName(),
+          cat: getCat(),
+          priority: getPriority(),
+          due: getDue(),
+          alert: 1,
+          memo: getMemo(),
+          done: statusName === '完了',
+          status: statusName,
+          created: page.created_time,
+          fromNotion: true
+        };
+      });
+      // Merge: keep local-only tasks, update notion tasks
+      const localOnly = tasks.filter(t => !t.notionId);
+      tasks = [...notionTasks, ...localOnly];
+      saveTasks();
+      renderAll();
+      dot.classList.remove('syncing');
+      label.textContent = 'Notion同期';
+      showToast('✅', '同期完了', `${notionTasks.length}件のタスクを取得しました`);
+    }
+  } catch(e) {
+    dot.classList.remove('syncing');
+    label.textContent = 'Notion同期';
+    showToast('⚠️', '同期エラー', 'ローカルデータを使用中');
+  }
+}
+
+// Add task to Notion
+async function addTask() {
+  const name = document.getElementById('taskName').value.trim();
+  if (!name) { showToast('⚠️','エラー','タスク名を入力してください'); return; }
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true;
+  btn.querySelector('span').textContent = '追加中...';
+  const cat = document.getElementById('taskCat').value;
+  const priority = document.getElementById('taskPriority').value;
+  const due = document.getElementById('taskDue').value;
+  const memo = document.getElementById('taskMemo').value;
+  const priorityMap = { high:'高', mid:'中', low:'低' };
+
+  try {
+    const body = {
+      parent: { database_id: NOTION_DB_ID },
+      properties: {
+        'タスク名': { title: [{ text: { content: name } }] },
+        'カテゴリ': { select: { name: cat } },
+        '優先度': { select: { name: priorityMap[priority] } },
+        'ステータス': { status: { name: '未着手' } }
+      }
+    };
+    if (due) body.properties['期日'] = { date: { start: due } };
+    if (memo) body.properties['説明'] = { rich_text: [{ text: { content: memo } }] };
+
+    const res = await notionRequest('pages', 'POST', body);
+    const task = {
+      id: res.id || Date.now(),
+      notionId: res.id,
+      name, cat, priority, due,
+      alert: parseInt(document.getElementById('taskAlert').value),
+      memo, done: false, status: '未着手',
+      created: new Date().toISOString(), fromNotion: true
+    };
+    tasks.unshift(task);
+    saveTasks();
+    renderAll();
+    document.getElementById('taskName').value = '';
+    document.getElementById('taskMemo').value = '';
+    showToast('✅','Notionに追加',`「${name}」を登録しました`);
+    scheduleAlert(task);
+  } catch(e) {
+    // Fallback to local
+    const task = {
+      id: Date.now(), name, cat, priority, due,
+      alert: parseInt(document.getElementById('taskAlert').value),
+      memo, done: false, status: '未着手',
+      created: new Date().toISOString()
+    };
+    tasks.unshift(task);
+    saveTasks();
+    renderAll();
+    showToast('📋','ローカルに追加',`Notion連携できませんでしたがローカルに保存しました`);
+  }
+  btn.disabled = false;
+  btn.querySelector('span').textContent = '＋ Notionに追加';
+}
+
+// Add from AI
+async function addTaskFromAI(name, cat, priority) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '追加中...';
+  const due = document.getElementById('taskDue').value;
+  const priorityMap = { high:'高', mid:'中', low:'低' };
+  try {
+    const body = {
+      parent: { database_id: NOTION_DB_ID },
+      properties: {
+        'タスク名': { title: [{ text: { content: name } }] },
+        'カテゴリ': { select: { name: cat } },
+        '優先度': { select: { name: priorityMap[priority] || '中' } },
+        'ステータス': { status: { name: '未着手' } }
+      }
+    };
+    if (due) body.properties['期日'] = { date: { start: due } };
+    await notionRequest('pages', 'POST', body);
+    const task = { id: Date.now()+Math.random(), name, cat, priority, due, alert:1, memo:'AIで抽出', done:false, status:'未着手', created:new Date().toISOString(), fromNotion:true };
+    tasks.unshift(task);
+    saveTasks();
+    renderAll();
+    btn.textContent = '追加済み✓';
+    showToast('✦','AI追加',`「${name}」をNotionに登録しました`);
+  } catch(e) {
+    btn.textContent = '追加失敗';
+    showToast('⚠️','エラー','Notion追加に失敗しました');
+  }
+}
+
+// Delete task
+async function deleteTask(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  const t = tasks.find(t => String(t.id) === String(id));
+  if (!t) return;
+  // Notionからも削除（アーカイブ）
+  if (t.notionId) {
+    try {
+      await notionRequest(`pages/${t.notionId}`, 'PATCH', { archived: true });
+    } catch(e) {}
+  }
+  tasks = tasks.filter(t => String(t.id) !== String(id));
+  saveTasks();
+  renderAll();
+  showToast('🗑️', '削除しました', `「${t.name}」を削除しました`);
+}
+
+// Toggle done
+async function toggleTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (!t) return;
+  t.done = !t.done;
+  t.status = t.done ? '完了' : '未着手';
+  saveTasks();
+  renderAll();
+  if (t.notionId) {
+    try {
+      await notionRequest(`pages/${t.notionId}`, 'PATCH', {
+        properties: { 'ステータス': { status: { name: t.status } } }
+      });
+    } catch(e) {}
+  }
+}
+
+// Filter
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTaskList();
+}
+
+function getFilteredTasks() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  return tasks.filter(t => {
+    if (currentFilter === 'all') return true;
+    if (currentFilter === 'today') {
+      if (!t.due) return false;
+      return new Date(t.due).getTime() === today.getTime();
+    }
+    if (currentFilter === 'overdue') {
+      if (!t.due || t.done) return false;
+      return new Date(t.due) < today;
+    }
+    return t.cat === currentFilter;
+  });
+}
+
+function getDueStatus(due) {
+  if (!due) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(due);
+  if (d < today) return 'overdue';
+  if (d.getTime() === today.getTime()) return 'today';
+  return '';
+}
+
+function formatDue(due) {
+  if (!due) return '';
+  const d = new Date(due);
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+// Render all
+function renderAll() {
+  renderTaskList();
+  updateStats();
+  updateLogTaskSelect();
+  renderTimeLogs();
+  if (currentTab === 'calendar') renderCalendar();
+  if (currentTab === 'category') renderCategory();
+  if (currentTab === 'workload') renderWorkload();
+}
+
+function renderTaskList() {
+  const list = document.getElementById('taskList');
+  const filtered = getFilteredTasks();
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>タスクがありません</p></div>';
+    return;
+  }
+  // Sort: undone first, then by due
+  const sorted = [...filtered].sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    if (!a.due && !b.due) return 0;
+    if (!a.due) return 1;
+    if (!b.due) return -1;
+    return new Date(a.due) - new Date(b.due);
+  });
+  list.innerHTML = sorted.map(t => {
+    const status = getDueStatus(t.due);
+    return `<div class="task-item ${t.done?'done':''}" id="task-${t.id}">
+      <div class="task-check ${t.done?'checked':''}" onclick="toggleTask('${t.id}')"></div>
+      <div class="task-info">
+        <div class="task-name">${t.name}</div>
+        ${t.memo ? `<div class="task-memo">${t.memo}</div>` : ''}
+      </div>
+      <span class="task-cat cat-${t.cat}">${t.cat}</span>
+      <span class="task-due ${status}">${formatDue(t.due)}</span>
+      <div class="task-priority priority-${t.priority}"></div>
+      <span class="notion-icon">${t.fromNotion ? 'N' : ''}</span>
+      <button class="delete-btn" onclick="deleteTask('${t.id}')" title="削除">×</button>
+    </div>`;
+  }).join('');
+}
+
+function updateStats() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayN = tasks.filter(t => t.due && new Date(t.due).getTime()===today.getTime()).length;
+  const pending = tasks.filter(t => !t.done && t.status==='未着手').length;
+  const inProgress = tasks.filter(t => !t.done && t.status==='進行中').length;
+  const overdue = tasks.filter(t => !t.done && t.due && new Date(t.due)<today).length;
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+  const weekHours = timeLogs.filter(l => new Date(l.date) >= weekStart).reduce((s,l) => s+l.hours, 0);
+  document.getElementById('statToday').textContent = todayN;
+  document.getElementById('statPending').textContent = pending;
+  document.getElementById('statInProgress').textContent = inProgress;
+  document.getElementById('statOverdue').textContent = overdue;
+  document.getElementById('statHours').textContent = weekHours.toFixed(1);
+}
+
+// Calendar
+function changeMonth(d) {
+  currentMonth.setMonth(currentMonth.getMonth()+d);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  document.getElementById('calMonthLabel').textContent = `${year}.${String(month+1).padStart(2,'0')}`;
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month+1, 0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  let html = '<div class="calendar-grid">';
+  ['日','月','火','水','木','金','土'].forEach(d => html += `<div class="cal-header">${d}</div>`);
+  for (let i=0; i<first.getDay(); i++) html += '<div class="cal-day other-month"></div>';
+  for (let d=1; d<=last.getDate(); d++) {
+    const date = new Date(year, month, d);
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = date.getTime()===today.getTime();
+    const dayTasks = tasks.filter(t => t.due===dateStr && !t.done);
+    html += `<div class="cal-day ${isToday?'today':''}">
+      <div class="cal-date">${d}</div>
+      ${dayTasks.slice(0,2).map(t => `<div class="cal-task-dot cat-${t.cat}" style="font-size:9px;padding:1px 3px;border-radius:2px;">${t.name.slice(0,6)}</div>`).join('')}
+      ${dayTasks.length>2?`<div style="font-size:9px;color:var(--text3)">+${dayTasks.length-2}</div>`:''}
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('calendarGrid').innerHTML = html;
+}
+
+// Category view
+function renderCategory() {
+  const cats = ['決裁系','設計担当','営業助成','社外返答'];
+  const colors = ['var(--cat-1)','var(--cat-2)','var(--cat-3)','var(--cat-4)'];
+  const total = tasks.filter(t => !t.done).length || 1;
+  document.getElementById('catView').innerHTML = cats.map((cat,i) => {
+    const all = tasks.filter(t => t.cat===cat);
+    const done = all.filter(t => t.done).length;
+    const undone = all.filter(t => !t.done).length;
+    const pct = Math.round((undone/total)*100);
+    return `<div class="cat-card">
+      <div class="cat-card-header">
+        <span class="cat-card-name" style="color:${colors[i]}">${cat}</span>
+        <span style="font-size:10px;color:var(--text3)">${done}件完了</span>
+      </div>
+      <div class="cat-card-count" style="color:${colors[i]}">${undone}</div>
+      <div style="font-size:11px;color:var(--text3)">未完了タスク</div>
+      <div class="cat-bar"><div class="cat-bar-fill" style="width:${pct}%;background:${colors[i]}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// Workload
+function renderWorkload() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = ['日','月','火','水','木','金','土'];
+  const weekStart = new Date(today); weekStart.setDate(today.getDate()-today.getDay());
+  const weekData = Array(7).fill(0);
+  timeLogs.forEach(l => {
+    const d = new Date(l.date); d.setHours(0,0,0,0);
+    const diff = Math.floor((d-weekStart)/(86400000));
+    if (diff>=0 && diff<7) weekData[diff] += l.hours;
+  });
+  const max = Math.max(...weekData, 1);
+  document.getElementById('weekGrid').innerHTML = weekData.map((h,i) => {
+    const date = new Date(weekStart); date.setDate(weekStart.getDate()+i);
+    const isToday = date.getTime()===today.getTime();
+    return `<div class="week-day">
+      <div class="week-label" style="color:${isToday?'var(--accent)':'var(--text3)'}">${days[i]}</div>
+      <div class="week-bar-wrap">
+        <div class="week-bar" style="height:${(h/max)*100}%;background:${isToday?'var(--accent)':'var(--accent2)'}"></div>
+      </div>
+      <div class="week-hours">${h>0?h+'h':'-'}</div>
+    </div>`;
+  }).join('');
+  renderTimeLogs();
+}
+
+function updateLogTaskSelect() {
+  const sel = document.getElementById('logTask');
+  sel.innerHTML = '<option value="">タスクを選択...</option>' +
+    tasks.filter(t=>!t.done).map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function logTime() {
+  const taskId = document.getElementById('logTask').value;
+  const date = document.getElementById('logDate').value;
+  const hours = parseFloat(document.getElementById('logHours').value);
+  if (!taskId || !date || !hours) { showToast('⚠️','エラー','すべて入力してください'); return; }
+  const task = tasks.find(t => t.id == taskId);
+  timeLogs.unshift({ id:Date.now(), taskId, taskName:task?.name||'', date, hours });
+  saveTimeLogs();
+  renderAll();
+  document.getElementById('logHours').value = '';
+  showToast('⏱️','実績を記録',`${task?.name} · ${hours}時間`);
+}
+
+function renderTimeLogs() {
+  const el = document.getElementById('timeLogList');
+  if (!el) return;
+  const recent = timeLogs.slice(0,5);
+  if (!recent.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3)">実績がありません</div>'; return; }
+  el.innerHTML = recent.map(l => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:12px">${l.taskName}</div>
+        <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace">${l.date}</div>
+      </div>
+      <div style="font-size:13px;color:var(--accent);font-family:'DM Serif Display',serif">${l.hours}h</div>
+    </div>`).join('');
+}
+
+// Alerts
+function scheduleAlert(task) {
+  if (!task.due || !notifGranted) return;
+  const due = new Date(task.due); due.setHours(9,0,0,0);
+  const alertTime = new Date(due - task.alert*86400000);
+  const delay = alertTime - new Date();
+  if (delay>0 && delay<86400000*7) {
+    setTimeout(() => {
+      new Notification(`📋 ${task.name}`, { body:`期限: ${formatDue(task.due)}` });
+    }, delay);
+  }
+}
+
+function checkAlerts() {
+  const now = new Date();
+  tasks.filter(t => !t.done && t.due).forEach(t => {
+    const due = new Date(t.due); due.setHours(9,0,0,0);
+    const alertDate = new Date(due - (t.alert||1)*86400000);
+    if (Math.abs(alertDate-now)<60000) {
+      showToast('🔔','リマインダー',`「${t.name}」の期限が近づいています`);
+      if (notifGranted) new Notification(`🔔 ${t.name}`,{body:`期限: ${formatDue(t.due)}`});
+    }
+  });
+}
+
+function requestNotification() {
+  Notification.requestPermission().then(p => {
+    if (p==='granted') { notifGranted=true; showToast('🔔','通知を有効化','ブラウザ通知が有効になりました'); }
+    else showToast('⚠️','通知が無効','ブラウザの設定から通知を許可してください');
+  });
+}
+
+// EML file handling
+let emlTexts = [];
+
+function parseEml(rawText) {
+  var lines = rawText.split(/
+?
+/);
+  var inBody = false, subject = '', from = '', body = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (!inBody) {
+      if (line.trim() === '') { inBody = true; continue; }
+      if (line.toLowerCase().indexOf('subject:') === 0) subject = line.slice(8).trim();
+      if (line.toLowerCase().indexOf('from:') === 0) from = line.slice(5).trim();
+    } else { body.push(line); }
+  }
+  var bodyText = body.join(' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').trim().slice(0,500);
+  return '件名:' + subject + ' 差出人:' + from + ' 本文:' + bodyText;
+}
+
+function parseMsgBinary(buffer) {
+  var bytes = new Uint8Array(buffer);
+  var text = '';
+  for (var i = 0; i < bytes.length - 1; i += 2) {
+    var code = bytes[i] | (bytes[i+1] << 8);
+    if (code >= 0x20 && code < 0x10000) text += String.fromCharCode(code);
+    else if (code === 10 || code === 13) text += ' ';
+  }
+  var result = '', chunk = '';
+  for (var j = 0; j < text.length; j++) {
+    var c = text.charCodeAt(j);
+    var isJp = (c >= 0x3000 && c <= 0x9fff) || (c >= 0xff00 && c <= 0xffef);
+    if ((c >= 0x20 && c <= 0x7e) || isJp) { chunk += text[j]; }
+    else { if (chunk.length > 4) result += chunk + ' '; chunk = ''; }
+  }
+  if (chunk.length > 4) result += chunk;
+  return '本文概要:' + result.slice(0, 600);
+}
+
+var emlTexts = [];
+
+function loadEmlFiles(files) {
+  if (!files || !files.length) return;
+  emlTexts = [];
+  var listEl = document.getElementById('emlFileList');
+  if (listEl) listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);">' + files.length + '件読み込み中...</div>';
+  var loaded = 0;
+  for (var i = 0; i < files.length; i++) {
+    (function(file) {
+      var isMsg = file.name.toLowerCase().slice(-4) === '.msg';
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var text = isMsg
+          ? '件名:' + file.name.replace('.msg','') + ' ' + parseMsgBinary(ev.target.result)
+          : parseEml(ev.target.result);
+        emlTexts.push({ filename: file.name, text: text });
+        loaded++;
+        if (loaded === files.length) {
+          if (listEl) listEl.innerHTML = emlTexts.map(function(e) {
+            return '<div style="font-size:11px;color:var(--text2);padding:2px 0;">📧 ' + e.filename + '</div>';
+          }).join('');
+          showToast('📧','読み込み完了', files.length + '件のメールを読み込みました');
+        }
+      };
+      if (isMsg) reader.readAsArrayBuffer(file);
+      else reader.readAsText(file,'utf-8');
+    })(files[i]);
+  }
+}
+
+async function extractTasks() {
+  var mailContents = '';
+  if (emlTexts.length > 0) {
+    mailContents = emlTexts.map(function(e,i){ return '[メール'+(i+1)+'] '+e.filename+'
+'+e.text; }).join('
+
+---
+
+');
+  } else {
+    var ta = document.getElementById('aiPaste');
+    mailContents = ta ? ta.value.trim() : '';
+  }
+  if (!mailContents) { showToast('⚠️','エラー','.msgファイルを選択か本文を入力してください'); return; }
+  var btn = document.getElementById('aiBtn');
+  btn.disabled = true;
+  btn.textContent = emlTexts.length ? emlTexts.length+'件を解析中...' : '解析中...';
+  var result = document.getElementById('aiResult');
+  result.innerHTML = '<div class="loading"><div class="spinner"></div>AIが重要度を判定しています...</div>';
+  result.classList.add('show');
+  var CLAUDE_API_KEY = localStorage.getItem('hara_claude_key') || '';
+  try {
+    var res = await fetch('https://notion-proxy.h113-yuhta.workers.dev/claude', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:2000,
+        messages:[{role:'user',content:'以下のメールを分析して対応が必要なタスクをすべて抽出してください。
+
+'+mailContents+'
+
+JSONのみで返答（他テキスト不要）:
+{"tasks":[{"name":"タスク名","cat":"決裁系|設計担当|営業助成|社外返答","priority":"high|mid|low","reason":"優先度の理由10文字以内","source":"件名またはファイル名"}]}'}]
+      })
+    });
+    var data = await res.json();
+    var txt = data.content[0].text;
+    var parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
+    if (parsed.tasks && parsed.tasks.length) {
+      result.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">'+parsed.tasks.length+'件のタスクを抽出しました</div>' +
+        parsed.tasks.map(function(t) {
+          var pri = t.priority==='high'?'🔴高':t.priority==='mid'?'🟡中':'🟢低';
+          var safeName = t.name.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          var safeCat = t.cat.replace(/'/g,'&#39;');
+          return '<div class="ai-task-preview">' +
+            '<div style="flex:1;min-width:0">' +
+              '<div class="ai-task-name">' + t.name + '</div>' +
+              '<div class="ai-task-meta">' + t.cat + ' · ' + pri + ' · ' + (t.reason||'') + '</div>' +
+              (t.source ? '<div style="font-size:10px;color:var(--text3);">📧 ' + t.source + '</div>' : '') +
+            '</div>' +
+            '<button class="btn-add-ai" onclick="addTaskFromAI(&#39;' + safeName + '&#39;,&#39;' + safeCat + '&#39;,&#39;' + t.priority + '&#39;)">追加</button>' +
+          '</div>';
+        }).join('');;
+    } else {
+      result.innerHTML = '<div style="font-size:12px;color:var(--text3)">タスクが見つかりませんでした</div>';
+    }
+  } catch(e) {
+    result.innerHTML = '<div style="font-size:12px;color:var(--danger)">エラーが発生しました: '+e.message+'</div>';
+  }
+  btn.disabled = false;
+  btn.textContent = '✦ AIでタスクを一括抽出する';
+}
+
+
+function showToast(icon,title,body) {
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastBody').textContent = body;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3500);
+}
+document.getElementById('emlInput').addEventListener('change', function(e) {
+  loadEmlFiles(Array.from(e.target.files));
+});
+</script>
+</body>
+</html>
