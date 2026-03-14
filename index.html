@@ -164,6 +164,14 @@
   .priority-mid { background:var(--accent); }
   .priority-low { background:var(--text3); }
   .notion-icon { font-size:12px; opacity:0.4; }
+  .task-status-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px; cursor: pointer;
+    font-weight: 600; flex-shrink: 0; transition: all 0.15s; white-space: nowrap;
+  }
+  .status-todo { background: rgba(255,255,255,0.08); color: var(--text3); }
+  .status-wip { background: rgba(59,130,246,0.2); color: #60a5fa; }
+  .status-done { background: rgba(34,197,94,0.2); color: #4ade80; }
+  .task-status-badge:hover { opacity: 0.8; transform: scale(1.05); }
   .delete-btn {
     background:none; border:none; color:var(--text3); cursor:pointer;
     font-size:16px; padding:2px 6px; border-radius:4px;
@@ -833,6 +841,32 @@ async function addTaskFromAI(name, cat, priority) {
   }
 }
 
+// Cycle task status
+async function cycleStatus(id) {
+  const t = tasks.find(t => String(t.id) === String(id));
+  if (!t) return;
+  const cycle = ['未着手', '進行中', '完了'];
+  const current = t.status || '未着手';
+  const next = cycle[(cycle.indexOf(current) + 1) % cycle.length];
+  t.status = next;
+  t.done = (next === '完了');
+  saveTasks();
+  renderAll();
+  // Notionにも反映
+  if (t.notionId) {
+    try {
+      await notionRequest('pages/' + t.notionId, 'PATCH', {
+        properties: { 'ステータス': { status: { name: next } } }
+      });
+      showToast('✅', 'ステータス更新', t.name + ' → ' + next);
+    } catch(e) {
+      showToast('✅', 'ステータス更新', t.name + ' → ' + next + '（ローカルのみ）');
+    }
+  } else {
+    showToast('✅', 'ステータス更新', t.name + ' → ' + next);
+  }
+}
+
 // Delete task
 async function deleteTask(id) {
   if (!confirm('このタスクを削除しますか？')) return;
@@ -934,12 +968,15 @@ function renderTaskList() {
   });
   list.innerHTML = sorted.map(t => {
     const status = getDueStatus(t.due);
+    const taskStatus = t.status || '未着手';
+    const statusClass = taskStatus === '完了' ? 'status-done' : taskStatus === '進行中' ? 'status-wip' : 'status-todo';
     return `<div class="task-item ${t.done?'done':''}" id="task-${t.id}">
       <div class="task-check ${t.done?'checked':''}" onclick="toggleTask('${t.id}')"></div>
       <div class="task-info">
         <div class="task-name">${t.name}</div>
         ${t.memo ? `<div class="task-memo">${t.memo}</div>` : ''}
       </div>
+      <span class="task-status-badge ${statusClass}" onclick="cycleStatus('${t.id}')" title="クリックでステータス変更">${taskStatus}</span>
       <span class="task-cat cat-${t.cat}">${t.cat}</span>
       <span class="task-due ${status}">${formatDue(t.due)}</span>
       <div class="task-priority priority-${t.priority}"></div>
