@@ -164,6 +164,22 @@
   .priority-mid { background:var(--accent); }
   .priority-low { background:var(--text3); }
   .notion-icon { font-size:12px; opacity:0.4; }
+  .notion-link-btn {
+    font-size: 11px; padding: 2px 6px; border-radius: 4px;
+    background: rgba(255,255,255,0.08); color: var(--text3);
+    text-decoration: none; flex-shrink: 0; transition: all 0.15s;
+  }
+  .notion-link-btn:hover { background: var(--accent); color: #000; }
+  .cat-menu {
+    position: absolute; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 4px 0; z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); min-width: 100px;
+  }
+  .cat-menu-item {
+    padding: 6px 12px; font-size: 12px; cursor: pointer; color: var(--text2);
+    transition: background 0.15s;
+  }
+  .cat-menu-item:hover { background: var(--bg3); color: var(--text1); }
   .task-status-badge {
     font-size: 11px; padding: 2px 8px; border-radius: 10px; cursor: pointer;
     font-weight: 600; flex-shrink: 0; transition: all 0.15s; white-space: nowrap;
@@ -841,6 +857,54 @@ async function addTaskFromAI(name, cat, priority) {
   }
 }
 
+// Category menu
+var activeCatMenu = null;
+function openCatMenu(id, el) {
+  // 既存メニューを閉じる
+  if (activeCatMenu) { activeCatMenu.remove(); activeCatMenu = null; }
+  const cats = ['決裁系', '設計担当', '営業助成', '社外返答'];
+  const menu = document.createElement('div');
+  menu.className = 'cat-menu';
+  cats.forEach(function(cat) {
+    const item = document.createElement('div');
+    item.className = 'cat-menu-item';
+    item.textContent = cat;
+    item.onclick = function() { changeCat(id, cat); menu.remove(); activeCatMenu = null; };
+    menu.appendChild(item);
+  });
+  const rect = el.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = rect.left + 'px';
+  document.body.appendChild(menu);
+  activeCatMenu = menu;
+  setTimeout(function() {
+    document.addEventListener('click', function close(e) {
+      if (!menu.contains(e.target)) { menu.remove(); activeCatMenu = null; document.removeEventListener('click', close); }
+    });
+  }, 0);
+}
+
+async function changeCat(id, newCat) {
+  const t = tasks.find(t => String(t.id) === String(id));
+  if (!t) return;
+  t.cat = newCat;
+  saveTasks();
+  renderAll();
+  if (t.notionId) {
+    try {
+      await notionRequest('pages/' + t.notionId, 'PATCH', {
+        properties: { 'カテゴリ': { select: { name: newCat } } }
+      });
+      showToast('📁', 'カテゴリ更新', t.name + ' → ' + newCat);
+    } catch(e) {
+      showToast('📁', 'カテゴリ更新', t.name + ' → ' + newCat + '（ローカルのみ）');
+    }
+  } else {
+    showToast('📁', 'カテゴリ更新', t.name + ' → ' + newCat);
+  }
+}
+
 // Cycle task status
 async function cycleStatus(id) {
   const t = tasks.find(t => String(t.id) === String(id));
@@ -977,10 +1041,10 @@ function renderTaskList() {
         ${t.memo ? `<div class="task-memo">${t.memo}</div>` : ''}
       </div>
       <span class="task-status-badge ${statusClass}" onclick="cycleStatus('${t.id}')" title="クリックでステータス変更">${taskStatus}</span>
-      <span class="task-cat cat-${t.cat}">${t.cat}</span>
+      <span class="task-cat cat-${t.cat}" onclick="openCatMenu('${t.id}', this)" title="クリックでカテゴリ変更" style="cursor:pointer;">${t.cat}</span>
       <span class="task-due ${status}">${formatDue(t.due)}</span>
       <div class="task-priority priority-${t.priority}"></div>
-      <span class="notion-icon">${t.fromNotion ? 'N' : ''}</span>
+      ${t.notionId ? `<a href="https://notion.so/${t.notionId.replace(/-/g,'')}" target="_blank" class="notion-link-btn" title="Notionで開く">N↗</a>` : '<span class="notion-icon"></span>'}
       <button class="delete-btn" onclick="deleteTask('${t.id}')" title="削除">×</button>
     </div>`;
   }).join('');
