@@ -271,6 +271,12 @@
   }
   .ai-task-name { font-size:12px; color:var(--text); }
   .ai-task-meta { font-size:10px; color:var(--text3); margin-top:1px; }
+  .btn-skip-ai {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text3);
+    padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer;
+    font-size: 12px; margin-left: 4px; transition: all 0.15s;
+  }
+  .btn-skip-ai:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
   .btn-add-ai {
     font-size:10px; background:rgba(232,197,71,0.1); color:var(--accent);
     border:1px solid rgba(232,197,71,0.2); border-radius:4px;
@@ -1205,6 +1211,12 @@ async function extractTasks() {
       })
     });
     var data = await res.json();
+    console.log('API response:', JSON.stringify(data).slice(0,500));
+    if (!data.content || !data.content[0]) {
+      result.innerHTML = '<div style="font-size:12px;color:var(--danger)">APIエラー: ' + JSON.stringify(data).slice(0,200) + '</div>';
+      btn.disabled = false; btn.textContent = '✦ AIでタスクを一括抽出する';
+      return;
+    }
     var txt = data.content[0].text;
     var parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
     if (parsed.tasks && parsed.tasks.length) {
@@ -1218,7 +1230,12 @@ async function extractTasks() {
         btn2.className = 'btn-add-ai';
         btn2.textContent = '追加';
         btn2.onclick = (function(name,cat,priority){ return function(){ addTaskFromAI(name,cat,priority); }; })(t.name,t.cat,t.priority);
+        var btn3 = document.createElement('button');
+        btn3.className = 'btn-skip-ai';
+        btn3.textContent = '不要';
+        btn3.onclick = function(){ div.remove(); };
         div.appendChild(btn2);
+        div.appendChild(btn3);
         result.appendChild(div);
       });
     } else {
