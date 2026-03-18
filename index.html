@@ -164,6 +164,9 @@
   .priority-mid { background:var(--accent); }
   .priority-low { background:var(--text3); }
   .notion-icon { font-size:12px; opacity:0.4; }
+  .cat-task-list { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .cat-task-item { display:flex; align-items:center; gap:8px; padding:4px 0; }
+  .cat-task-name { font-size:12px; color:var(--text2); }
   .notion-link-btn {
     font-size: 11px; padding: 2px 6px; border-radius: 4px;
     background: rgba(255,255,255,0.08); color: var(--text3);
@@ -385,9 +388,12 @@
     </div>
     <div class="header-right">
       <div class="date-badge" id="dateDisplay"></div>
-      <button class="sync-btn" onclick="syncFromNotion()">
+      <button class="sync-btn" onclick="syncFromNotion()" title="Notionからタスクを取得">
         <div class="sync-dot" id="syncDot"></div>
-        <span id="syncLabel">Notion同期</span>
+        <span id="syncLabel">Notionから同期</span>
+      </button>
+      <button class="sync-btn" onclick="pushToNotion()" title="ローカルタスクをNotionへ送信" style="margin-left:6px;background:var(--accent);color:#000;border:none;">
+        Notionへ同期
       </button>
       <button class="notif-btn" onclick="requestNotification()" title="通知を有効にする">🔔</button>
     </div>
@@ -569,6 +575,43 @@
         <button class="btn-ai" id="aiBtn" onclick="extractTasks()">✦ AIでタスクを一括抽出する</button>
         <div class="ai-result" id="aiResult"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border-radius:var(--radius);padding:24px;width:90%;max-width:440px;border:1px solid var(--border);">
+    <h3 style="margin:0 0 16px;font-size:16px;">✏️ タスク編集</h3>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px;color:var(--text3);">タスク名</label>
+      <input id="editName" type="text" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;color:var(--text1);font-size:14px;box-sizing:border-box;margin-top:4px;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div>
+        <label style="font-size:11px;color:var(--text3);">カテゴリ</label>
+        <select id="editCat" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;color:var(--text1);margin-top:4px;">
+          <option>決裁系</option><option>設計担当</option><option>営業助成</option><option>社外返答</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text3);">優先度</label>
+        <select id="editPriority" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;color:var(--text1);margin-top:4px;">
+          <option value="high">高</option><option value="mid">中</option><option value="low">低</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px;color:var(--text3);">期限</label>
+      <input id="editDue" type="date" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;color:var(--text1);box-sizing:border-box;margin-top:4px;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:11px;color:var(--text3);">メモ・進捗・特記事項</label>
+      <textarea id="editMemo" rows="4" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;color:var(--text1);font-size:13px;box-sizing:border-box;margin-top:4px;resize:vertical;"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveEdit()" style="flex:1;background:var(--accent);color:#000;border:none;padding:10px;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;">保存</button>
+      <button onclick="document.getElementById('editModal').style.display='none'" style="flex:1;background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:10px;border-radius:var(--radius-sm);cursor:pointer;">キャンセル</button>
     </div>
   </div>
 </div>
@@ -857,6 +900,86 @@ async function addTaskFromAI(name, cat, priority) {
   }
 }
 
+// Edit modal
+var editingId = null;
+function openEditModal(id) {
+  const t = tasks.find(t => String(t.id) === String(id));
+  if (!t) return;
+  editingId = id;
+  document.getElementById('editName').value = t.name || '';
+  document.getElementById('editCat').value = t.cat || '決裁系';
+  document.getElementById('editPriority').value = t.priority || 'mid';
+  document.getElementById('editDue').value = t.due || '';
+  document.getElementById('editMemo').value = t.memo || '';
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+async function saveEdit() {
+  const t = tasks.find(t => String(t.id) === String(editingId));
+  if (!t) return;
+  t.name = document.getElementById('editName').value.trim();
+  t.cat = document.getElementById('editCat').value;
+  t.priority = document.getElementById('editPriority').value;
+  t.due = document.getElementById('editDue').value;
+  t.memo = document.getElementById('editMemo').value.trim();
+  saveTasks();
+  renderAll();
+  document.getElementById('editModal').style.display = 'none';
+  // Notionにも反映
+  if (t.notionId) {
+    try {
+      const props = {
+        'タスク名': { title: [{ text: { content: t.name } }] },
+        'カテゴリ': { select: { name: t.cat } },
+        '優先度': { select: { name: t.priority === 'high' ? '高' : t.priority === 'mid' ? '中' : '低' } },
+        '説明': { rich_text: [{ text: { content: t.memo } }] }
+      };
+      if (t.due) props['期日'] = { date: { start: t.due } };
+      await notionRequest('pages/' + t.notionId, 'PATCH', { properties: props });
+      showToast('✏️', '更新完了', t.name + ' を更新しました');
+    } catch(e) {
+      showToast('✏️', '更新完了', t.name + ' を更新しました（ローカルのみ）');
+    }
+  } else {
+    showToast('✏️', '更新完了', t.name + ' を更新しました');
+  }
+}
+
+// Push local tasks to Notion
+async function pushToNotion() {
+  const btn = document.getElementById('push-btn') || document.querySelector('[onclick="pushToNotion()"]');
+  if (btn) { btn.textContent = '同期中...'; btn.disabled = true; }
+  const localOnly = tasks.filter(t => !t.notionId);
+  if (!localOnly.length) {
+    showToast('✅', 'Notionへ同期', '同期するタスクがありません');
+    if (btn) { btn.textContent = 'Notionへ同期'; btn.disabled = false; }
+    return;
+  }
+  let count = 0;
+  for (const t of localOnly) {
+    try {
+      const NOTION_DB = localStorage.getItem('hara_notion_db') || '';
+      const props = {
+        'タスク名': { title: [{ text: { content: t.name } }] },
+        'カテゴリ': { select: { name: t.cat } },
+        '優先度': { select: { name: t.priority === 'high' ? '高' : t.priority === 'mid' ? '中' : '低' } },
+        'ステータス': { status: { name: t.status || '未着手' } }
+      };
+      if (t.due) props['期日'] = { date: { start: t.due } };
+      if (t.memo) props['説明'] = { rich_text: [{ text: { content: t.memo } }] };
+      const res = await notionRequest('pages', 'POST', {
+        parent: { database_id: NOTION_DB },
+        properties: props
+      });
+      if (res.id) { t.notionId = res.id; t.fromNotion = true; count++; }
+    } catch(e) {}
+  }
+  saveTasks();
+  renderAll();
+  if (btn) { btn.textContent = 'Notionへ同期'; btn.disabled = false; }
+  showToast('☁️', 'Notionへ同期完了', count + '件をNotionに追加しました');
+}
+
 // Category menu
 var activeCatMenu = null;
 function openCatMenu(id, el) {
@@ -1036,9 +1159,9 @@ function renderTaskList() {
     const statusClass = taskStatus === '完了' ? 'status-done' : taskStatus === '進行中' ? 'status-wip' : 'status-todo';
     return `<div class="task-item ${t.done?'done':''}" id="task-${t.id}">
       <div class="task-check ${t.done?'checked':''}" onclick="toggleTask('${t.id}')"></div>
-      <div class="task-info">
+      <div class="task-info" onclick="openEditModal('${t.id}')" style="cursor:pointer;">
         <div class="task-name">${t.name}</div>
-        ${t.memo ? `<div class="task-memo">${t.memo}</div>` : ''}
+        <div class="task-memo">${t.memo || '（メモなし・クリックで編集）'}</div>
       </div>
       <span class="task-status-badge ${statusClass}" onclick="cycleStatus('${t.id}')" title="クリックでステータス変更">${taskStatus}</span>
       <span class="task-cat cat-${t.cat}" onclick="openCatMenu('${t.id}', this)" title="クリックでカテゴリ変更" style="cursor:pointer;">${t.cat}</span>
@@ -1114,6 +1237,13 @@ function renderCategory() {
       <div class="cat-card-count" style="color:${colors[i]}">${undone}</div>
       <div style="font-size:11px;color:var(--text3)">未完了タスク</div>
       <div class="cat-bar"><div class="cat-bar-fill" style="width:${pct}%;background:${colors[i]}"></div></div>
+      <div class="cat-task-list">${all.filter(t=>!t.done).map(t => `
+        <div class="cat-task-item">
+          <div class="task-check ${t.done?'checked':''}" onclick="toggleTask('${t.id}')"></div>
+          <span class="cat-task-name" onclick="openEditModal('${t.id}')" style="cursor:pointer;flex:1">${t.name}</span>
+          <span class="task-status-badge ${t.status==='完了'?'status-done':t.status==='進行中'?'status-wip':'status-todo'}" onclick="cycleStatus('${t.id}')">${t.status||'未着手'}</span>
+        </div>`).join('')}
+      </div>
     </div>`;
   }).join('');
 }
