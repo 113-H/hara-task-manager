@@ -745,6 +745,7 @@ async function syncFromNotion() {
         };
         const getCat = () => {
           for (const key of ['カテゴリ','Category']) {
+            if (props[key]?.multi_select?.[0]?.name) return props[key].multi_select[0].name;
             if (props[key]?.select?.name) return props[key].select.name;
           }
           return '社外返答';
@@ -828,7 +829,7 @@ async function addTask() {
       parent: { database_id: NOTION_DB_ID() },
       properties: {
         'タスク名': { title: [{ text: { content: name } }] },
-        'カテゴリ': { select: { name: cat } },
+        'カテゴリ': { multi_select: [{ name: cat }] },
         '優先度': { select: { name: priorityMap[priority] } },
         'ステータス': { status: { name: '未着手' } }
       }
@@ -881,7 +882,7 @@ async function addTaskFromAI(name, cat, priority) {
       parent: { database_id: NOTION_DB_ID() },
       properties: {
         'タスク名': { title: [{ text: { content: name } }] },
-        'カテゴリ': { select: { name: cat } },
+        'カテゴリ': { multi_select: [{ name: cat }] },
         '優先度': { select: { name: priorityMap[priority] || '中' } },
         'ステータス': { status: { name: '未着手' } }
       }
@@ -930,7 +931,7 @@ async function saveEdit() {
     try {
       const props = {
         'タスク名': { title: [{ text: { content: t.name } }] },
-        'カテゴリ': { select: { name: t.cat } },
+        'カテゴリ': { multi_select: [{ name: t.cat }] },
         '優先度': { select: { name: t.priority === 'high' ? '高' : t.priority === 'mid' ? '中' : '低' } },
         '説明': { rich_text: [{ text: { content: t.memo } }] }
       };
@@ -961,7 +962,7 @@ async function pushToNotion() {
       const NOTION_DB = localStorage.getItem('hara_notion_db') || '';
       const props = {
         'タスク名': { title: [{ text: { content: t.name } }] },
-        'カテゴリ': { select: { name: t.cat } },
+        'カテゴリ': { multi_select: [{ name: t.cat }] },
         '優先度': { select: { name: t.priority === 'high' ? '高' : t.priority === 'mid' ? '中' : '低' } },
         'ステータス': { status: { name: t.status || '未着手' } }
       };
@@ -1017,7 +1018,7 @@ async function changeCat(id, newCat) {
   if (t.notionId) {
     try {
       await notionRequest('pages/' + t.notionId, 'PATCH', {
-        properties: { 'カテゴリ': { select: { name: newCat } } }
+        properties: { 'カテゴリ': { multi_select: [{ name: newCat }] } }
       });
       showToast('📁', 'カテゴリ更新', t.name + ' → ' + newCat);
     } catch(e) {
