@@ -645,7 +645,7 @@
 <script>
 // Config
 const NOTION_API_KEY = localStorage.getItem("hara_notion_key") || "";
-const NOTION_DB_ID = localStorage.getItem("hara_notion_db") || "322e20f7251780e8ba31d92cb2be6783";
+function NOTION_DB_ID() { return localStorage.getItem("hara_notion_db") || "322e20f7251780e8ba31d92cb2be6783"; }
 const NOTION_VERSION = '2022-06-28';
 
 // State
@@ -731,7 +731,7 @@ async function syncFromNotion() {
   dot.classList.add('syncing');
   label.textContent = '同期中...';
   try {
-    const data = await notionRequest(`databases/${NOTION_DB_ID}/query`, 'POST', {
+    const data = await notionRequest(`databases/${NOTION_DB_ID()}/query`, 'POST', {
       sorts: [{ property: '期日', direction: 'ascending' }]
     });
     if (data.results) {
@@ -825,7 +825,7 @@ async function addTask() {
 
   try {
     const body = {
-      parent: { database_id: NOTION_DB_ID },
+      parent: { database_id: NOTION_DB_ID() },
       properties: {
         'タスク名': { title: [{ text: { content: name } }] },
         'カテゴリ': { select: { name: cat } },
@@ -878,7 +878,7 @@ async function addTaskFromAI(name, cat, priority) {
   const priorityMap = { high:'高', mid:'中', low:'低' };
   try {
     const body = {
-      parent: { database_id: NOTION_DB_ID },
+      parent: { database_id: NOTION_DB_ID() },
       properties: {
         'タスク名': { title: [{ text: { content: name } }] },
         'カテゴリ': { select: { name: cat } },
