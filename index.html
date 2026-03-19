@@ -625,6 +625,10 @@
       <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px;">NOTION APIキー</label>
       <input type="password" id="setupApiKey" placeholder="ntn_..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'Noto Sans JP',sans-serif;outline:none;">
     </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;">CLAUDE APIキー（AIタスク抽出用）</label>
+      <input type="password" id="setupClaudeKey" placeholder="sk-ant-..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;box-sizing:border-box;margin-top:6px;">
+    </div>
     <div style="margin-bottom:20px;">
       <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px;">データベースID（変更不要）</label>
       <input type="text" id="setupDbId" value="322e20f7251780e8ba31d92cb2be6783" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;">
@@ -660,9 +664,11 @@ let notifGranted = false;
 function saveSetup() {
   const key = document.getElementById('setupApiKey').value.trim();
   const db = document.getElementById('setupDbId').value.trim();
-  if (!key) { alert('APIキーを入力してください'); return; }
+  if (!key) { alert('Notion APIキーを入力してください'); return; }
   localStorage.setItem('hara_notion_key', key);
   localStorage.setItem('hara_notion_db', db);
+  var claudeEl = document.getElementById('setupClaudeKey');
+  if (claudeEl && claudeEl.value.trim()) localStorage.setItem('hara_claude_key', claudeEl.value.trim());
   document.getElementById('setupModal').style.display = 'none';
   location.reload();
 }
